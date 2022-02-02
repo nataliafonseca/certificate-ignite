@@ -3,7 +3,11 @@ import type { AWS } from "@serverless/typescript";
 const serverlessConfiguration: AWS = {
   service: "certificateignite",
   frameworkVersion: "3",
-  plugins: ["serverless-esbuild"],
+  plugins: [
+    "serverless-esbuild",
+    "serverless-offline",
+    "serverless-dynamodb-local",
+  ],
   provider: {
     name: "aws",
     runtime: "nodejs14.x",
@@ -15,16 +19,31 @@ const serverlessConfiguration: AWS = {
       AWS_NODEJS_CONNECTION_REUSE_ENABLED: "1",
       NODE_OPTIONS: "--enable-source-maps --stack-trace-limit=1000",
     },
+    iam: {
+      role: {
+        statements: [
+          {
+            Effect: "Allow",
+            Action: ["dynamodb:*"],
+            Resource: "*",
+          },
+          {
+            Effect: "Allow",
+            Action: ["s3:*"],
+            Resource: "*",
+          },
+        ],
+      },
+    },
   },
-  // import the function via paths
   functions: {
-    hello: {
-      handler: "src/functions/hello.handler",
+    generateCertificate: {
+      handler: "src/functions/generateCertificate.handler",
       events: [
         {
           http: {
             method: "post",
-            path: "hello",
+            path: "generate",
             cors: true,
           },
         },
@@ -42,6 +61,41 @@ const serverlessConfiguration: AWS = {
       define: { "require.resolve": undefined },
       platform: "node",
       concurrency: 10,
+      external: ["chrome-aws-lambda"],
+    },
+    // dynamodb: {
+    //   stages: ["dev", "local"],
+    //   start: {
+    //     port: 8000,
+    //     inMemory: true,
+    //     migrate: true,
+    //   },
+    // },
+  },
+  resources: {
+    Resources: {
+      dbCertificateUsers: {
+        Type: "AWS::DynamoDB::Table",
+        Properties: {
+          TableName: "users_certificate",
+          ProvisionedThroughput: {
+            ReadCapacityUnits: 5,
+            WriteCapacityUnits: 5,
+          },
+          AttributeDefinitions: [
+            {
+              AttributeName: "id",
+              AttributeType: "S",
+            },
+          ],
+          KeySchema: [
+            {
+              AttributeName: "id",
+              KeyType: "HASH",
+            },
+          ],
+        },
+      },
     },
   },
 };
